@@ -99,4 +99,5 @@ def predict():
             os.remove(temp_path)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Το host='0.0.0.0' είναι το κλειδί για να δουλέψει το link του Colab!
+    app.run(host='0.0.0.0', port=5000)
