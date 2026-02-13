@@ -14,7 +14,7 @@ le = joblib.load('label_encoder.pkl')
 
 def extract_features(file_path):
     """Εξαγωγή 58 χαρακτηριστικών ακριβώς όπως στο εκπαιδευμένο μοντέλο"""
-    y, sr = librosa.load(file_path, duration=30)
+    y, sr = librosa.load(file_path, duration=10)
     
     features_dict = {}
     
