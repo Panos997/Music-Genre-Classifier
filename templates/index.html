@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Music Genre Predictor</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background: #f4f4f9; }
+        .container { background: white; padding: 30px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .result { margin-top: 20px; font-weight: bold; font-size: 1.2em; color: #1db954; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Music Genre AI</h1>
+        <p>Ανέβασε ένα MP3 για ανάλυση</p>
+        <input type="file" id="audioFile" accept="audio/*">
+        <button onclick="uploadFile()">Πρόβλεψη!</button>
+        <div id="loading" style="display:none;">⏳ Αναλύω...</div>
+        <div id="results" class="result"></div>
+    </div>
+
+    <script>
+        async function uploadFile() {
+            const fileInput = document.getElementById('audioFile');
+            const resultsDiv = document.getElementById('results');
+            const loading = document.getElementById('loading');
+            
+            if (!fileInput.files[0]) return alert("Πρόσθεσε ένα αρχείο!");
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            loading.style.display = "block";
+            resultsDiv.innerHTML = "";
+
+            try {
+                const response = await fetch('/predict', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultsDiv.innerHTML = "❌ Σφάλμα: " + data.error;
+                } else {
+                    let html = "<h3>Top 3 Προβλέψεις:</h3>";
+                    data.forEach((item, index) => {
+                        html += `<p>${index+1}. ${item.genre}: ${item.probability}%</p>`;
+                    });
+                    resultsDiv.innerHTML = html;
+                }
+            } catch (e) {
+                resultsDiv.innerHTML = "❌ Κάτι πήγε στραβά.";
+            } finally {
+                loading.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
