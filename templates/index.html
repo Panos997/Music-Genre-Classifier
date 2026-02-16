@@ -8,11 +8,10 @@
         body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 40px; background: #f4f4f9; color: #333; }
         .container { background: white; padding: 30px; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
         #progressContainer { width: 100%; background: #eee; border-radius: 10px; margin: 20px 0; display: none; overflow: hidden; }
-        #progressBar { width: 0%; height: 25px; background: #1db954; color: white; line-height: 25px; font-weight: bold; transition: width 0.3s; }
+        #progressBar { width: 0%; height: 25px; background: #1db954; color: white; line-height: 25px; font-weight: bold; transition: background-color 0.4s; }
         .result-text { margin-top: 20px; font-size: 1.1em; }
         button { background: #1db954; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; }
         button:hover { background: #1ed760; }
-        input[type="file"] { margin: 20px 0; }
         canvas { margin-top: 20px; }
     </style>
 </head>
@@ -20,14 +19,14 @@
 
     <div class="container">
         <h1>🎵 Music Genre AI</h1>
-        <p>Ανέβασε ένα MP3 για έξυπνη ανάλυση</p>
+        <p>Έξυπνη ανάλυση (Αρχή, Μέση, Τέλος)</p>
         
         <input type="file" id="audioFile" accept="audio/*">
         <br>
         <button onclick="processAndUpload()">Πρόβλεψη!</button>
 
         <div id="progressContainer">
-            <div id="progressBar">0%</div>
+            <div id="progressBar">Προετοιμασία...</div>
         </div>
 
         <div id="results" class="result-text"></div>
@@ -45,41 +44,50 @@
 
             if (!fileInput.files[0]) return alert("Παρακαλώ επίλεξε ένα αρχείο!");
 
-            const file = fileInput.files[0];
             progContainer.style.display = "block";
-            progBar.style.width = "0%";
-            progBar.style.backgroundColor = "#1db954";
+            progBar.style.width = "100%"; // Για την προετοιμασία
+            progBar.style.backgroundColor = "#555";
             progBar.innerHTML = "Επεξεργασία δείγματος...";
 
             try {
-                // 1. ΔΕΙΓΜΑΤΟΛΗΨΙΑ (10s αρχή, 10s μέση, 10s τέλος)
-                const trimmedBlob = await createSmartSample(file);
-                
+                const trimmedBlob = await createSmartSample(fileInput.files[0]);
                 const formData = new FormData();
                 formData.append('file', trimmedBlob, "sample.wav");
 
-                // 2. XMLHttpRequest ΓΙΑ ΠΡΑΓΜΑΤΙΚΟ PROGRESS
                 const xhr = new XMLHttpRequest();
                 
+                // 1. ΦΑΣΗ UPLOAD
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
                         const percent = Math.round((e.loaded / e.total) * 100);
                         progBar.style.width = percent + "%";
-                        progBar.innerHTML = "Upload: " + percent + "%";
+                        progBar.style.backgroundColor = "#1db954";
+                        progBar.innerHTML = "Uploading: " + percent + "%";
                     }
                 };
 
+                // 2. ΜΟΛΙΣ ΤΕΛΕΙΩΣΕΙ ΤΟ UPLOAD ΑΛΛΑ ΠΡΙΝ ΤΗΝ ΑΠΑΝΤΗΣΗ
+                xhr.upload.onload = () => {
+                    progBar.style.width = "100%";
+                    progBar.style.backgroundColor = "#ffa500"; // Πορτοκαλί
+                    progBar.innerHTML = "AI: Ερμηνεία τραγουδιού...";
+                };
+
+                // 3. ΟΤΑΝ ΕΡΘΟΥΝ ΤΑ ΑΠΟΤΕΛΕΣΜΑΤΑ
                 xhr.onload = () => {
                     if (xhr.status === 200) {
-                        progBar.style.backgroundColor = "#ffa500";
-                        progBar.innerHTML = "Το AI αναλύει...";
                         const data = JSON.parse(xhr.responseText);
+                        
+                        // Πρώτα εμφανίζουμε τα δεδομένα
                         renderChart(data);
                         showResults(data);
+
+                        // Μετά αλλάζουμε την μπάρα σε "Ολοκληρώθηκε"
+                        progBar.style.backgroundColor = "#1db954"; // Πράσινο πάλι
                         progBar.innerHTML = "Ολοκληρώθηκε!";
-                        progBar.style.backgroundColor = "#1db954";
                     } else {
-                        alert("Σφάλμα στον server.");
+                        progBar.style.backgroundColor = "red";
+                        progBar.innerHTML = "Σφάλμα AI";
                     }
                 };
 
@@ -88,7 +96,8 @@
 
             } catch (err) {
                 console.error(err);
-                alert("Σφάλμα κατά την επεξεργασία του ήχου.");
+                progBar.style.backgroundColor = "red";
+                progBar.innerHTML = "Σφάλμα αρχείου";
             }
         }
 
@@ -96,62 +105,43 @@
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            
             const sampleSecs = 10;
             const rate = audioBuffer.sampleRate;
-            const totalLen = audioBuffer.length;
             const chunkLen = sampleSecs * rate;
+            const totalLen = audioBuffer.length;
 
-            // Σημεία κοπής: Αρχή, Μέση, Τέλος
             const startPos = 0;
             const midPos = Math.max(0, Math.floor(totalLen / 2) - Math.floor(chunkLen / 2));
             const endPos = Math.max(0, totalLen - chunkLen);
 
-            // Δημιουργία νέου buffer 30 δευτερολέπτων
             const newBuffer = audioCtx.createBuffer(audioBuffer.numberOfChannels, chunkLen * 3, rate);
-
             for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
                 const oldData = audioBuffer.getChannelData(channel);
                 const newData = newBuffer.getChannelData(channel);
-                
-                // Αντιγραφή τμημάτων
                 newData.set(oldData.slice(startPos, startPos + chunkLen), 0);
                 newData.set(oldData.slice(midPos, midPos + chunkLen), chunkLen);
                 newData.set(oldData.slice(endPos, endPos + chunkLen), chunkLen * 2);
             }
-
             return bufferToWav(newBuffer);
         }
 
-        // Βοηθητική συνάρτηση μετατροπής Buffer σε WAV (Blob)
         function bufferToWav(abuffer) {
-            let numOfChan = abuffer.numberOfChannels,
-                length = abuffer.length * numOfChan * 2 + 44,
-                buffer = new ArrayBuffer(length),
-                view = new DataView(buffer),
+            let numOfChan = abuffer.numberOfChannels, length = abuffer.length * numOfChan * 2 + 44,
+                buffer = new ArrayBuffer(length), view = new DataView(buffer),
                 channels = [], i, sample, offset = 0, pos = 0;
-
             function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
             function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
-
-            setUint32(0x46464952); // "RIFF"
-            setUint32(length - 8); 
-            setUint32(0x45564157); // "WAVE"
-            setUint32(0x20746d66); // "fmt "
-            setUint32(16); setUint16(1); setUint16(numOfChan);
+            setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+            setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
             setUint32(abuffer.sampleRate); setUint32(abuffer.sampleRate * 2 * numOfChan);
-            setUint16(numOfChan * 2); setUint16(16);
-            setUint32(0x61746164); // "data"
+            setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164);
             setUint32(length - pos - 4);
-
             for(i=0; i<abuffer.numberOfChannels; i++) channels.push(abuffer.getChannelData(i));
-
             while(pos < length) {
                 for(i=0; i<numOfChan; i++) {
                     sample = Math.max(-1, Math.min(1, channels[i][offset]));
                     sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
-                    view.setInt16(pos, sample, true);
-                    pos += 2;
+                    view.setInt16(pos, sample, true); pos += 2;
                 }
                 offset++;
             }
@@ -178,13 +168,7 @@
                         borderWidth: 2
                     }]
                 },
-                options: { 
-                    responsive: true,
-                    plugins: { 
-                        legend: { position: 'bottom' },
-                        tooltip: { enabled: true }
-                    }
-                }
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
             });
         }
     </script>
