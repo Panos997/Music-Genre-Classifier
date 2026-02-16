@@ -2,28 +2,102 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <title>AI Music Genre Predictor</title>
+    <title>AI Music Genre Predictor | Premium</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 40px; background: #f4f4f9; color: #333; }
-        .container { background: white; padding: 30px; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
-        #progressContainer { width: 100%; background: #eee; border-radius: 10px; margin: 20px 0; display: none; overflow: hidden; }
-        #progressBar { width: 0%; height: 25px; background: #1db954; color: white; line-height: 25px; font-weight: bold; transition: background-color 0.4s; }
-        .result-text { margin-top: 20px; font-size: 1.1em; }
-        button { background: #1db954; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; }
-        button:hover { background: #1ed760; }
-        canvas { margin-top: 20px; }
+        /* Modern Gradient Background */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            text-align: center; 
+            padding: 40px; 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            min-height: 100vh;
+            margin: 0;
+            color: #2d3436; 
+        }
+
+        .container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 30px; 
+            display: inline-block; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1); 
+            width: 100%; 
+            max-width: 550px; 
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        h1 { font-size: 2.2em; margin-bottom: 10px; color: #1e272e; }
+        p { color: #7f8c8d; margin-bottom: 30px; }
+
+        /* Custom Progress Bar */
+        #progressContainer { 
+            width: 100%; 
+            background: #dfe6e9; 
+            border-radius: 50px; 
+            margin: 25px 0; 
+            display: none; 
+            overflow: hidden; 
+            height: 28px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        #progressBar { 
+            width: 0%; 
+            height: 100%; 
+            background: linear-gradient(90deg, #1db954, #1ed760); 
+            color: white; 
+            line-height: 28px; 
+            font-weight: 600; 
+            font-size: 13px;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+
+        /* Styled Button */
+        button { 
+            background: linear-gradient(to right, #1db954, #191414); 
+            color: white; 
+            border: none; 
+            padding: 15px 40px; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            font-size: 18px; 
+            font-weight: bold; 
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 10px 20px rgba(29, 185, 84, 0.3);
+        }
+
+        button:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 15px 25px rgba(29, 185, 84, 0.4);
+        }
+
+        button:active { transform: translateY(0); }
+
+        .result-text { margin-top: 30px; }
+        .result-item { 
+            background: #f1f2f6; 
+            margin: 5px 0; 
+            padding: 10px; 
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        canvas { margin-top: 30px; max-width: 100% !important; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>🎵 Music Genre AI</h1>
-        <p>Έξυπνη ανάλυση (Αρχή, Μέση, Τέλος)</p>
+        <p>Έξυπνη ανάλυση 3 σημείων (Deep Scan)</p>
         
-        <input type="file" id="audioFile" accept="audio/*">
-        <br>
-        <button onclick="processAndUpload()">Πρόβλεψη!</button>
+        <input type="file" id="audioFile" accept="audio/*" style="display: none;">
+        <label for="audioFile" style="cursor: pointer; background: #eee; padding: 10px 20px; border-radius: 10px; display: block; margin-bottom: 20px;">
+            📁 Επιλογή MP3
+        </label>
+        
+        <button onclick="processAndUpload()">Έναρξη Πρόβλεψης</button>
 
         <div id="progressContainer">
             <div id="progressBar">Προετοιμασία...</div>
@@ -36,6 +110,13 @@
     <script>
         let myChart = null;
 
+        // Ορισμός Gradient Παλέτας
+        const chartColors = [
+            { start: '#1db954', end: '#1ed760' }, // Spotify Green
+            { start: '#00b894', end: '#55efc4' }, // Mint
+            { start: '#2d3436', end: '#636e72' }  // Dark Gray
+        ];
+
         async function processAndUpload() {
             const fileInput = document.getElementById('audioFile');
             const progBar = document.getElementById('progressBar');
@@ -45,8 +126,8 @@
             if (!fileInput.files[0]) return alert("Παρακαλώ επίλεξε ένα αρχείο!");
 
             progContainer.style.display = "block";
-            progBar.style.width = "100%"; // Για την προετοιμασία
-            progBar.style.backgroundColor = "#555";
+            progBar.style.width = "100%";
+            progBar.style.background = "#636e72";
             progBar.innerHTML = "Επεξεργασία δείγματος...";
 
             try {
@@ -56,37 +137,30 @@
 
                 const xhr = new XMLHttpRequest();
                 
-                // 1. ΦΑΣΗ UPLOAD
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
                         const percent = Math.round((e.loaded / e.total) * 100);
                         progBar.style.width = percent + "%";
-                        progBar.style.backgroundColor = "#1db954";
-                        progBar.innerHTML = "Uploading: " + percent + "%";
+                        progBar.style.background = "linear-gradient(90deg, #1db954, #1ed760)";
+                        progBar.innerHTML = "Ανέβασμα: " + percent + "%";
                     }
                 };
 
-                // 2. ΜΟΛΙΣ ΤΕΛΕΙΩΣΕΙ ΤΟ UPLOAD ΑΛΛΑ ΠΡΙΝ ΤΗΝ ΑΠΑΝΤΗΣΗ
                 xhr.upload.onload = () => {
                     progBar.style.width = "100%";
-                    progBar.style.backgroundColor = "#ffa500"; // Πορτοκαλί
+                    progBar.style.background = "linear-gradient(90deg, #f39c12, #f1c40f)"; // Πορτοκαλί Gradient
                     progBar.innerHTML = "AI: Ερμηνεία τραγουδιού...";
                 };
 
-                // 3. ΟΤΑΝ ΕΡΘΟΥΝ ΤΑ ΑΠΟΤΕΛΕΣΜΑΤΑ
                 xhr.onload = () => {
                     if (xhr.status === 200) {
                         const data = JSON.parse(xhr.responseText);
-                        
-                        // Πρώτα εμφανίζουμε τα δεδομένα
                         renderChart(data);
                         showResults(data);
-
-                        // Μετά αλλάζουμε την μπάρα σε "Ολοκληρώθηκε"
-                        progBar.style.backgroundColor = "#1db954"; // Πράσινο πάλι
+                        progBar.style.background = "linear-gradient(90deg, #00b894, #55efc4)"; // Mint Πράσινο
                         progBar.innerHTML = "Ολοκληρώθηκε!";
                     } else {
-                        progBar.style.backgroundColor = "red";
+                        progBar.style.background = "#ff7675";
                         progBar.innerHTML = "Σφάλμα AI";
                     }
                 };
@@ -96,11 +170,12 @@
 
             } catch (err) {
                 console.error(err);
-                progBar.style.backgroundColor = "red";
+                progBar.style.background = "#ff7675";
                 progBar.innerHTML = "Σφάλμα αρχείου";
             }
         }
 
+        // ... (Οι συναρτήσεις createSmartSample και bufferToWav παραμένουν ίδιες με πριν) ...
         async function createSmartSample(file) {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const arrayBuffer = await file.arrayBuffer();
@@ -109,11 +184,9 @@
             const rate = audioBuffer.sampleRate;
             const chunkLen = sampleSecs * rate;
             const totalLen = audioBuffer.length;
-
             const startPos = 0;
             const midPos = Math.max(0, Math.floor(totalLen / 2) - Math.floor(chunkLen / 2));
             const endPos = Math.max(0, totalLen - chunkLen);
-
             const newBuffer = audioCtx.createBuffer(audioBuffer.numberOfChannels, chunkLen * 3, rate);
             for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
                 const oldData = audioBuffer.getChannelData(channel);
@@ -150,25 +223,40 @@
 
         function showResults(data) {
             const div = document.getElementById('results');
-            div.innerHTML = `<h3>Top 3 Προβλέψεις:</h3>` + 
-                data.map((item, idx) => `<p>${idx+1}. ${item.genre}: ${item.probability}%</p>`).join('');
+            div.innerHTML = `<h3 style="margin-bottom:15px;">📊 Ανάλυση Ποσοστών</h3>` + 
+                data.map((item, idx) => `<div class="result-item" style="color:${chartColors[idx].start}">${item.genre}: ${item.probability}%</div>`).join('');
         }
 
         function renderChart(data) {
             const ctx = document.getElementById('genreChart').getContext('2d');
+            
+            // Δημιουργία Gradient για το Chart
+            const gradients = data.map((_, i) => {
+                const g = ctx.createLinearGradient(0, 0, 0, 400);
+                g.addColorStop(0, chartColors[i].start);
+                g.addColorStop(1, chartColors[i].end);
+                return g;
+            });
+
             if (myChart) myChart.destroy();
             myChart = new Chart(ctx, {
-                type: 'pie',
+                type: 'doughnut', // Το Doughnut δείχνει πιο μοντέρνο από το Pie
                 data: {
                     labels: data.map(i => i.genre),
                     datasets: [{
                         data: data.map(i => i.probability),
-                        backgroundColor: ['#1db954', '#1ed760', '#81b71a'],
-                        borderColor: '#fff',
-                        borderWidth: 2
+                        backgroundColor: gradients,
+                        hoverOffset: 20,
+                        borderWidth: 0
                     }]
                 },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                options: { 
+                    responsive: true, 
+                    cutout: '70%', // Κάνει την τρύπα στη μέση
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } 
+                    } 
+                }
             });
         }
     </script>
