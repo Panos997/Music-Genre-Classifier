@@ -1,192 +1,192 @@
 <!DOCTYPE html>
-<html>
+<html lang="el">
 <head>
+    <meta charset="UTF-8">
     <title>AI Music Genre Predictor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 50px; background: #f4f4f9; }
-        .container { background: white; padding: 30px; border-radius: 15px; display: inline-block; box-shadow: 0 8px 16px rgba(0,0,0,0.1); width: 450px; }
-        
-        /* Progress Bar Styling */
-        #progressContainer { width: 100%; background-color: #ddd; border-radius: 10px; margin: 20px 0; display: none; }
-        #progressBar { width: 0%; height: 20px; background-color: #1db954; border-radius: 10px; text-align: center; line-height: 20px; color: white; font-size: 12px; transition: width 0.3s; }
-        
-        .result { margin-top: 20px; font-weight: bold; }
-        canvas { margin-top: 20px; max-width: 100%; }
-        button { background: #1db954; color: white; border: none; padding: 10px 25px; border-radius: 20px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        input { margin-bottom: 15px; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 40px; background: #f4f4f9; color: #333; }
+        .container { background: white; padding: 30px; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
+        #progressContainer { width: 100%; background: #eee; border-radius: 10px; margin: 20px 0; display: none; overflow: hidden; }
+        #progressBar { width: 0%; height: 25px; background: #1db954; color: white; line-height: 25px; font-weight: bold; transition: width 0.3s; }
+        .result-text { margin-top: 20px; font-size: 1.1em; }
+        button { background: #1db954; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; }
+        button:hover { background: #1ed760; }
+        input[type="file"] { margin: 20px 0; }
+        canvas { margin-top: 20px; }
     </style>
 </head>
 <body>
+
     <div class="container">
         <h1>🎵 Music Genre AI</h1>
-        <p>Ανέβασε ένα MP3 για ανάλυση</p>
+        <p>Ανέβασε ένα MP3 για έξυπνη ανάλυση</p>
         
         <input type="file" id="audioFile" accept="audio/*">
         <br>
-        <button onclick="uploadFile()">Πρόβλεψη!</button>
+        <button onclick="processAndUpload()">Πρόβλεψη!</button>
 
         <div id="progressContainer">
             <div id="progressBar">0%</div>
         </div>
 
-        <div id="loading" style="display:none; margin-top: 10px;">⏳ Αναλύω το αρχείο...</div>
-        
-        <div class="result" id="results"></div>
-        
+        <div id="results" class="result-text"></div>
         <canvas id="genreChart"></canvas>
     </div>
 
     <script>
-    let myChart = null;
+        let myChart = null;
 
-    async function uploadFile() {
-        const fileInput = document.getElementById('audioFile');
-        const resultsDiv = document.getElementById('results');
-        const progContainer = document.getElementById('progressContainer');
-        const progBar = document.getElementById('progressBar');
-        
-        if (!fileInput.files[0]) return alert("Πρόσθεσε ένα αρχείο!");
+        async function processAndUpload() {
+            const fileInput = document.getElementById('audioFile');
+            const progBar = document.getElementById('progressBar');
+            const progContainer = document.getElementById('progressContainer');
+            const resultsDiv = document.getElementById('results');
 
-        progContainer.style.display = "block";
-        progBar.style.width = "0%";
-        progBar.style.backgroundColor = "#1db954";
-        progBar.innerHTML = "Επεξεργασία ήχου...";
+            if (!fileInput.files[0]) return alert("Παρακαλώ επίλεξε ένα αρχείο!");
 
-        try {
-            // 1. "ΚΟΨΙΜΟ" ΤΟΥ ΗΧΟΥ (Compression/Trimming)
-            const originalFile = fileInput.files[0];
-            const trimmedBlob = await trimAudio(originalFile, 30); // Κόβουμε στα 30 δευτερόλεπτα
+            const file = fileInput.files[0];
+            progContainer.style.display = "block";
+            progBar.style.width = "0%";
+            progBar.style.backgroundColor = "#1db954";
+            progBar.innerHTML = "Επεξεργασία δείγματος...";
+
+            try {
+                // 1. ΔΕΙΓΜΑΤΟΛΗΨΙΑ (10s αρχή, 10s μέση, 10s τέλος)
+                const trimmedBlob = await createSmartSample(file);
+                
+                const formData = new FormData();
+                formData.append('file', trimmedBlob, "sample.wav");
+
+                // 2. XMLHttpRequest ΓΙΑ ΠΡΑΓΜΑΤΙΚΟ PROGRESS
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progBar.style.width = percent + "%";
+                        progBar.innerHTML = "Upload: " + percent + "%";
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        progBar.style.backgroundColor = "#ffa500";
+                        progBar.innerHTML = "Το AI αναλύει...";
+                        const data = JSON.parse(xhr.responseText);
+                        renderChart(data);
+                        showResults(data);
+                        progBar.innerHTML = "Ολοκληρώθηκε!";
+                        progBar.style.backgroundColor = "#1db954";
+                    } else {
+                        alert("Σφάλμα στον server.");
+                    }
+                };
+
+                xhr.open("POST", "/predict");
+                xhr.send(formData);
+
+            } catch (err) {
+                console.error(err);
+                alert("Σφάλμα κατά την επεξεργασία του ήχου.");
+            }
+        }
+
+        async function createSmartSample(file) {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = await file.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             
-            const formData = new FormData();
-            formData.append('file', trimmedBlob, "trimmed_audio.mp3");
+            const sampleSecs = 10;
+            const rate = audioBuffer.sampleRate;
+            const totalLen = audioBuffer.length;
+            const chunkLen = sampleSecs * rate;
 
-            // 2. ΠΡΑΓΜΑΤΙΚΟ UPLOAD ΜΕ PROGRESS BAR
-            const xhr = new XMLHttpRequest();
-            
-            xhr.upload.addEventListener("progress", (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progBar.style.width = percentComplete + "%";
-                    progBar.innerHTML = "Upload: " + percentComplete + "%";
+            // Σημεία κοπής: Αρχή, Μέση, Τέλος
+            const startPos = 0;
+            const midPos = Math.max(0, Math.floor(totalLen / 2) - Math.floor(chunkLen / 2));
+            const endPos = Math.max(0, totalLen - chunkLen);
+
+            // Δημιουργία νέου buffer 30 δευτερολέπτων
+            const newBuffer = audioCtx.createBuffer(audioBuffer.numberOfChannels, chunkLen * 3, rate);
+
+            for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+                const oldData = audioBuffer.getChannelData(channel);
+                const newData = newBuffer.getChannelData(channel);
+                
+                // Αντιγραφή τμημάτων
+                newData.set(oldData.slice(startPos, startPos + chunkLen), 0);
+                newData.set(oldData.slice(midPos, midPos + chunkLen), chunkLen);
+                newData.set(oldData.slice(endPos, endPos + chunkLen), chunkLen * 2);
+            }
+
+            return bufferToWav(newBuffer);
+        }
+
+        // Βοηθητική συνάρτηση μετατροπής Buffer σε WAV (Blob)
+        function bufferToWav(abuffer) {
+            let numOfChan = abuffer.numberOfChannels,
+                length = abuffer.length * numOfChan * 2 + 44,
+                buffer = new ArrayBuffer(length),
+                view = new DataView(buffer),
+                channels = [], i, sample, offset = 0, pos = 0;
+
+            function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
+            function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+
+            setUint32(0x46464952); // "RIFF"
+            setUint32(length - 8); 
+            setUint32(0x45564157); // "WAVE"
+            setUint32(0x20746d66); // "fmt "
+            setUint32(16); setUint16(1); setUint16(numOfChan);
+            setUint32(abuffer.sampleRate); setUint32(abuffer.sampleRate * 2 * numOfChan);
+            setUint16(numOfChan * 2); setUint16(16);
+            setUint32(0x61746164); // "data"
+            setUint32(length - pos - 4);
+
+            for(i=0; i<abuffer.numberOfChannels; i++) channels.push(abuffer.getChannelData(i));
+
+            while(pos < length) {
+                for(i=0; i<numOfChan; i++) {
+                    sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+                    view.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+            return new Blob([buffer], {type: "audio/wav"});
+        }
+
+        function showResults(data) {
+            const div = document.getElementById('results');
+            div.innerHTML = `<h3>Top 3 Προβλέψεις:</h3>` + 
+                data.map((item, idx) => `<p>${idx+1}. ${item.genre}: ${item.probability}%</p>`).join('');
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('genreChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: data.map(i => i.genre),
+                    datasets: [{
+                        data: data.map(i => i.probability),
+                        backgroundColor: ['#1db954', '#1ed760', '#81b71a'],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: { 
+                    responsive: true,
+                    plugins: { 
+                        legend: { position: 'bottom' },
+                        tooltip: { enabled: true }
+                    }
                 }
             });
-
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === XMLHttpRequest.DONE) {
-                    if (xhr.status === 200) {
-                        progBar.style.width = "100%";
-                        progBar.style.backgroundColor = "#1db954";
-                        progBar.innerHTML = "Ανάλυση Ολοκληρώθηκε!";
-                        const data = JSON.parse(xhr.responseText);
-                        renderChart(data); // Εμφάνιση Πίτας
-                        showTextResults(data); // Εμφάνιση Κειμένου (για να είμαστε σίγουροι)
-                    } else {
-                        progBar.style.backgroundColor = "red";
-                        progBar.innerHTML = "Σφάλμα στον Server";
-                    }
-                }
-            };
-
-            // Φάση Ανάλυσης (Processing)
-            xhr.upload.onload = () => {
-                progBar.style.backgroundColor = "#ffa500";
-                progBar.innerHTML = "Το AI αναλύει το δείγμα...";
-            };
-
-            xhr.open("POST", "/predict", true);
-            xhr.send(formData);
-
-        } catch (error) {
-            console.error(error);
-            alert("Σφάλμα κατά την επεξεργασία του αρχείου.");
         }
-    }
-
-    // ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΤΟ ΚΟΨΙΜΟ ΤΟΥ ΗΧΟΥ
-    async function trimAudio(file, seconds) {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const arrayBuffer = await file.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        
-        // Υπολογίζουμε τα frames για τα δευτερόλεπτα που θέλουμε
-        const lengthToKeep = Math.min(audioBuffer.sampleRate * seconds, audioBuffer.length);
-        const newBuffer = audioCtx.createBuffer(audioBuffer.numberOfChannels, lengthToKeep, audioBuffer.sampleRate);
-        
-        for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-            newBuffer.copyToChannel(audioBuffer.getChannelData(i).slice(0, lengthToKeep), i);
-        }
-        
-        // Μετατροπή σε Blob (WAV format για ταχύτητα)
-        return new Promise(resolve => {
-            const worker = new Worker(URL.createObjectURL(new Blob([`
-                self.onmessage = function(e) {
-                    const buffer = e.data;
-                    const view = new DataView(new ArrayBuffer(44 + buffer[0].length * 2));
-                    // WAV Headers
-                    writeString(view, 0, 'RIFF');
-                    view.setUint32(4, 32 + buffer[0].length * 2, true);
-                    writeString(view, 8, 'WAVE');
-                    writeString(view, 12, 'fmt ');
-                    view.setUint32(16, 16, true);
-                    view.setUint16(20, 1, true);
-                    view.setUint16(22, buffer.length, true);
-                    view.setUint32(24, 44100, true);
-                    view.setUint32(28, 44100 * 2, true);
-                    view.setUint16(32, 2, true);
-                    view.setUint16(34, 16, true);
-                    writeString(view, 36, 'data');
-                    view.setUint32(40, buffer[0].length * 2, true);
-                    // PCM Data
-                    let offset = 44;
-                    for (let i = 0; i < buffer[0].length; i++) {
-                        for (let channel = 0; channel < buffer.length; channel++) {
-                            let s = Math.max(-1, Math.min(1, buffer[channel][i]));
-                            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                            offset += 2;
-                        }
-                    }
-                    self.postMessage(new Blob([view], {type: 'audio/wav'}));
-                };
-                function writeString(view, offset, string) {
-                    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
-                }
-            `], {type: 'text/javascript'})));
-            
-            const channels = [];
-            for(let i=0; i<newBuffer.numberOfChannels; i++) channels.append(newBuffer.getChannelData(i));
-            worker.postMessage(channels);
-            worker.onmessage = (e) => resolve(e.data);
-        });
-    }
-
-    function showTextResults(data) {
-        const resultsDiv = document.getElementById('results');
-        let html = "<h3>Αποτελέσματα:</h3>";
-        data.forEach(item => {
-            html += `<p>${item.genre}: ${item.probability}%</p>`;
-        });
-        resultsDiv.innerHTML = html;
-    }
-
-    function renderChart(data) {
-        const ctx = document.getElementById('genreChart').getContext('2d');
-        if (myChart) myChart.destroy();
-        myChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: data.map(i => i.genre),
-                datasets: [{
-                    data: data.map(i => i.probability),
-                    backgroundColor: ['#1db954', '#1ed760', '#81b71a']
-                }]
-            },
-            options: { 
-                responsive: true,
-                plugins: { tooltip: { enabled: true } }
-            }
-        });
-    }
-</script>
+    </script>
 </body>
 </html>
