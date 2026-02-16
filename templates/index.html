@@ -2,54 +2,119 @@
 <html>
 <head>
     <title>AI Music Genre Predictor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background: #f4f4f9; }
-        .container { background: white; padding: 30px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .result { margin-top: 20px; font-weight: bold; font-size: 1.2em; color: #1db954; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 50px; background: #f4f4f9; }
+        .container { background: white; padding: 30px; border-radius: 15px; display: inline-block; box-shadow: 0 8px 16px rgba(0,0,0,0.1); width: 450px; }
+        
+        /* Progress Bar Styling */
+        #progressContainer { width: 100%; background-color: #ddd; border-radius: 10px; margin: 20px 0; display: none; }
+        #progressBar { width: 0%; height: 20px; background-color: #1db954; border-radius: 10px; text-align: center; line-height: 20px; color: white; font-size: 12px; transition: width 0.3s; }
+        
+        .result { margin-top: 20px; font-weight: bold; }
+        canvas { margin-top: 20px; max-width: 100%; }
+        button { background: #1db954; color: white; border: none; padding: 10px 25px; border-radius: 20px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        input { margin-bottom: 15px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎵 Music Genre AI</h1>
         <p>Ανέβασε ένα MP3 για ανάλυση</p>
+        
         <input type="file" id="audioFile" accept="audio/*">
+        <br>
         <button onclick="uploadFile()">Πρόβλεψη!</button>
-        <div id="loading" style="display:none;">⏳ Αναλύω...</div>
-        <div id="results" class="result"></div>
+
+        <div id="progressContainer">
+            <div id="progressBar">0%</div>
+        </div>
+
+        <div id="loading" style="display:none; margin-top: 10px;">⏳ Αναλύω το αρχείο...</div>
+        
+        <div class="result" id="results"></div>
+        
+        <canvas id="genreChart"></canvas>
     </div>
 
     <script>
+        let myChart = null;
+
         async function uploadFile() {
             const fileInput = document.getElementById('audioFile');
             const resultsDiv = document.getElementById('results');
             const loading = document.getElementById('loading');
+            const progContainer = document.getElementById('progressContainer');
+            const progBar = document.getElementById('progressBar');
             
             if (!fileInput.files[0]) return alert("Πρόσθεσε ένα αρχείο!");
 
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
 
-            loading.style.display = "block";
+            // Εμφάνιση Progress Bar
+            progContainer.style.display = "block";
+            progBar.style.width = "0%";
+            progBar.innerHTML = "0%";
             resultsDiv.innerHTML = "";
+            if(myChart) myChart.destroy();
 
-            try {
-                const response = await fetch('/predict', { method: 'POST', body: formData });
-                const data = await response.json();
-                
-                if (data.error) {
-                    resultsDiv.innerHTML = "❌ Σφάλμα: " + data.error;
-                } else {
-                    let html = "<h3>Top 3 Προβλέψεις:</h3>";
-                    data.forEach((item, index) => {
-                        html += `<p>${index+1}. ${item.genre}: ${item.probability}%</p>`;
-                    });
-                    resultsDiv.innerHTML = html;
+            // Χρήση XMLHttpRequest για να βλέπουμε το Progress
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener("progress", (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progBar.style.width = percentComplete + "%";
+                    progBar.innerHTML = percentComplete + "%";
                 }
-            } catch (e) {
-                resultsDiv.innerHTML = "❌ Κάτι πήγε στραβά.";
-            } finally {
-                loading.style.display = "none";
-            }
+            });
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    loading.style.display = "none";
+                    if (xhr.status === 200) {
+                        const data = JSON.parse(xhr.responseText);
+                        renderChart(data);
+                    } else {
+                        resultsDiv.innerHTML = "❌ Σφάλμα κατά τη μεταφόρτωση.";
+                    }
+                }
+            };
+
+            xhr.open("POST", "/predict", true);
+            loading.style.display = "block";
+            xhr.send(formData);
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('genreChart').getContext('2d');
+            const labels = data.map(item => item.genre);
+            const values = data.map(item => item.probability);
+
+            myChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: ['#1db954', '#1ed760', '#81b71a'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            enabled: true, // Ενεργοποιεί το hover
+                            callbacks: {
+                                label: (context) => ` ${context.label}: ${context.raw}%`
+                            }
+                        }
+                    }
+                }
+            });
         }
     </script>
 </body>
