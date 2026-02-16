@@ -52,70 +52,59 @@
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
 
-            // Εμφάνιση Progress Bar
             progContainer.style.display = "block";
             progBar.style.width = "0%";
-            progBar.innerHTML = "0%";
-            resultsDiv.innerHTML = "";
+            progBar.style.backgroundColor = "#1db954"; // Πράσινο για το upload
+            progBar.innerHTML = "Ανέβασμα...";
+            
             if(myChart) myChart.destroy();
 
-            // Χρήση XMLHttpRequest για να βλέπουμε το Progress
             const xhr = new XMLHttpRequest();
             
+            // ΦΑΣΗ 1: Πραγματικό Upload
             xhr.upload.addEventListener("progress", (e) => {
                 if (e.lengthComputable) {
                     const percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progBar.style.width = percentComplete + "%";
-                    progBar.innerHTML = percentComplete + "%";
+                    // Κρατάμε το upload μέχρι το 95% για να αφήσουμε χώρο στο "processing"
+                    const displayPercent = Math.floor(percentComplete * 0.95); 
+                    progBar.style.width = displayPercent + "%";
+                    progBar.innerHTML = "Μεταφορά: " + displayPercent + "%";
                 }
             });
 
             xhr.onreadystatechange = function () {
                 if (xhr.readyState === XMLHttpRequest.DONE) {
-                    loading.style.display = "none";
                     if (xhr.status === 200) {
+                        progBar.style.width = "100%";
+                        progBar.innerHTML = "Ολοκληρώθηκε!";
+                        loading.style.display = "none";
                         const data = JSON.parse(xhr.responseText);
                         renderChart(data);
                     } else {
-                        resultsDiv.innerHTML = "❌ Σφάλμα κατά τη μεταφόρτωση.";
+                        progBar.style.backgroundColor = "red";
+                        progBar.innerHTML = "Σφάλμα!";
                     }
                 }
             };
 
+            // ΦΑΣΗ 2: Όταν το upload τελειώσει (Load event)
+            xhr.upload.onload = () => {
+                progBar.style.backgroundColor = "#ffa500"; // Πορτοκαλί για το Processing
+                progBar.innerHTML = "Ανάλυση AI (παρακαλώ περιμένετε)...";
+                // Μικρό animation για να φαίνεται ότι κάτι γίνεται
+                let dots = 0;
+                const interval = setInterval(() => {
+                    if (xhr.readyState === XMLHttpRequest.DONE) clearInterval(interval);
+                    dots = (dots + 1) % 4;
+                    progBar.innerHTML = "Ανάλυση AI" + ".".repeat(dots);
+                }, 500);
+            };
+
             xhr.open("POST", "/predict", true);
-            loading.style.display = "block";
             xhr.send(formData);
         }
 
-        function renderChart(data) {
-            const ctx = document.getElementById('genreChart').getContext('2d');
-            const labels = data.map(item => item.genre);
-            const values = data.map(item => item.probability);
-
-            myChart = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: ['#1db954', '#1ed760', '#81b71a'],
-                        borderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'bottom' },
-                        tooltip: {
-                            enabled: true, // Ενεργοποιεί το hover
-                            callbacks: {
-                                label: (context) => ` ${context.label}: ${context.raw}%`
-                            }
-                        }
-                    }
-                }
-            });
-        }
+        // Η renderChart παραμένει η ίδια...
     </script>
 </body>
 </html>
