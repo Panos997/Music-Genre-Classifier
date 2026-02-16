@@ -2,7 +2,7 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <title>AI Music Genre Predictor | Premium</title>
+    <title>AI Music Genre Predictor | Full Track Scan</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
@@ -75,6 +75,8 @@
             margin-bottom: 10px;
         }
 
+        button:disabled { background: #b2bec3; cursor: not-allowed; box-shadow: none; }
+
         .result-item { 
             background: #f1f2f6; 
             margin: 8px 0; 
@@ -92,14 +94,14 @@
 
     <div class="container">
         <h1>🎵 Music Genre AI</h1>
-        <p>Έξυπνη ανάλυση 3 σημείων (Deep Scan)</p>
+        <p>Πλήρης ανάλυση ολόκληρου του κομματιού</p>
         
         <input type="file" id="audioFile" accept="audio/*" style="display: none;" onchange="updateFileName()">
         <label for="audioFile" id="fileLabel" class="file-label">
             📁 Κάντε κλικ για να επιλέξετε αρχείο
         </label>
         
-        <button onclick="processAndUpload()">Έναρξη Πρόβλεψης</button>
+        <button id="predictBtn" onclick="processAndUpload()">Έναρξη Πρόβλεψης</button>
 
         <div id="progressContainer">
             <div id="progressBar">Προετοιμασία...</div>
@@ -110,7 +112,6 @@
     </div>
 
     <script>
-        // Καταχώρηση του plugin μόνιμων labels
         Chart.register(ChartDataLabels);
 
         let myChart = null;
@@ -133,17 +134,20 @@
             const fileInput = document.getElementById('audioFile');
             const progBar = document.getElementById('progressBar');
             const progContainer = document.getElementById('progressContainer');
+            const btn = document.getElementById('predictBtn');
             
             if (!fileInput.files[0]) return alert("Παρακαλώ επιλέξτε πρώτα ένα αρχείο!");
 
+            btn.disabled = true;
             progContainer.style.display = "block";
-            progBar.style.width = "100%";
-            progBar.innerHTML = "Επεξεργασία δείγματος...";
+            progBar.style.width = "10%";
+            progBar.innerHTML = "Φόρτωση αρχείου...";
 
             try {
-                const trimmedBlob = await createSmartSample(fileInput.files[0]);
+                // Επεξεργασία ολόκληρου του τραγουδιού
+                const fullTrackBlob = await createFullTrackSample(fileInput.files[0]);
                 const formData = new FormData();
-                formData.append('file', trimmedBlob, "sample.wav");
+                formData.append('file', fullTrackBlob, "full_track.wav");
 
                 const xhr = new XMLHttpRequest();
                 
@@ -151,62 +155,66 @@
                     if (e.lengthComputable) {
                         const percent = Math.round((e.loaded / e.total) * 100);
                         progBar.style.width = percent + "%";
-                        progBar.innerHTML = "Uploading: " + percent + "%";
+                        progBar.innerHTML = "Μεταφόρτωση: " + percent + "%";
                     }
                 };
 
-                xhr.upload.onload = () => {
-                    progBar.style.background = "linear-gradient(90deg, #f39c12, #f1c40f)";
-                    progBar.innerHTML = "AI: Ερμηνεία τραγουδιού...";
-                };
-
                 xhr.onload = () => {
+                    btn.disabled = false;
                     if (xhr.status === 200) {
                         const data = JSON.parse(xhr.responseText);
                         renderChart(data);
                         showResults(data);
                         progBar.style.background = "linear-gradient(90deg, #00b894, #55efc4)";
                         progBar.innerHTML = "Ολοκληρώθηκε!";
+                    } else {
+                        alert("Σφάλμα διακομιστή. Ίσως το αρχείο είναι πολύ μεγάλο.");
+                        progBar.innerHTML = "Σφάλμα.";
                     }
                 };
 
                 xhr.open("POST", "/predict");
                 xhr.send(formData);
-            } catch (err) { alert("Σφάλμα επεξεργασίας."); }
+                progBar.innerHTML = "AI: Ανάλυση ολόκληρης της διάρκειας...";
+
+            } catch (err) { 
+                console.error(err);
+                alert("Σφάλμα κατά την επεξεργασία του ήχου."); 
+                btn.disabled = false;
+            }
         }
 
-        async function createSmartSample(file) {
+        async function createFullTrackSample(file) {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            const sampleSecs = 10, rate = audioBuffer.sampleRate, chunkLen = sampleSecs * rate, totalLen = audioBuffer.length;
-            const startPos = 0, midPos = Math.max(0, Math.floor(totalLen / 2) - Math.floor(chunkLen / 2)), endPos = Math.max(0, totalLen - chunkLen);
-            const newBuffer = audioCtx.createBuffer(audioBuffer.numberOfChannels, chunkLen * 3, rate);
-            for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
-                const old = audioBuffer.getChannelData(ch), n = newBuffer.getChannelData(ch);
-                n.set(old.slice(startPos, startPos + chunkLen), 0);
-                n.set(old.slice(midPos, midPos + chunkLen), chunkLen);
-                n.set(old.slice(endPos, endPos + chunkLen), chunkLen * 2);
-            }
-            return bufferToWav(newBuffer);
+            
+            // Κρατάμε όλο το audio buffer
+            return bufferToWav(audioBuffer);
         }
 
         function bufferToWav(abuffer) {
-            let n = abuffer.numberOfChannels, len = abuffer.length * n * 2 + 44, buffer = new ArrayBuffer(len), view = new DataView(buffer), pos = 0;
-            const set16 = (d) => { view.setUint16(pos, d, true); pos += 2; }, set32 = (d) => { view.setUint32(pos, d, true); pos += 4; };
-            set32(0x46464952); set32(len - 8); set32(0x45564157); set32(0x20746d66); set32(16); set16(1); set16(n);
-            set32(abuffer.sampleRate); set32(abuffer.sampleRate * 2 * n); set16(n * 2); set16(16); set32(0x61746164); set32(len - pos - 4);
-            for(let i=0; i<abuffer.length; i++) { for(let ch=0; ch<n; ch++) {
-                let s = Math.max(-1, Math.min(1, abuffer.getChannelData(ch)[i]));
-                view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true); pos += 2;
-            }}
+            let n = abuffer.numberOfChannels, len = abuffer.length * n * 2 + 44, 
+                buffer = new ArrayBuffer(len), view = new DataView(buffer), pos = 0;
+            const set16 = (d) => { view.setUint16(pos, d, true); pos += 2; }, 
+                  set32 = (d) => { view.setUint32(pos, d, true); pos += 4; };
+            set32(0x46464952); set32(len - 8); set32(0x45564157); set32(0x20746d66); 
+            set32(16); set16(1); set16(n); set32(abuffer.sampleRate); 
+            set32(abuffer.sampleRate * 2 * n); set16(n * 2); set16(16); 
+            set32(0x61746164); set32(len - pos - 4);
+            for(let i=0; i<abuffer.length; i++) { 
+                for(let ch=0; ch<n; ch++) {
+                    let s = Math.max(-1, Math.min(1, abuffer.getChannelData(ch)[i]));
+                    view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true); pos += 2;
+                }
+            }
             return new Blob([buffer], {type: "audio/wav"});
         }
 
         function showResults(data) {
             const div = document.getElementById('results');
-            div.innerHTML = `<h3 style="margin:20px 0 10px 0;">📊 Ανάλυση</h3>` + 
-                data.map((item, idx) => `<div class="result-item"><span>${item.genre}</span><span>${item.probability}%</span></div>`).join('');
+            div.innerHTML = `<h3 style="margin:20px 0 10px 0;">📊 Αποτελέσματα</h3>` + 
+                data.map(item => `<div class="result-item"><span>${item.genre}</span><span>${item.probability}%</span></div>`).join('');
         }
 
         function renderChart(data) {
@@ -235,14 +243,10 @@
                     cutout: '65%',
                     plugins: { 
                         legend: { display: false },
-                        // Ρυθμίσεις για τα μόνιμα ποσοστά πάνω στο chart
                         datalabels: {
                             color: '#ffffff',
                             font: { weight: 'bold', size: 14 },
                             formatter: (value) => value + '%',
-                            anchor: 'center',
-                            align: 'center',
-                            offset: 0,
                             textShadowBlur: 4,
                             textShadowColor: 'rgba(0,0,0,0.5)'
                         },
