@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>AI Music Genre Predictor | Premium</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -25,7 +26,6 @@
             max-width: 550px; 
         }
 
-        /* Styled File Input */
         .file-label {
             display: block;
             background: #f1f2f6;
@@ -72,6 +72,7 @@
             font-size: 18px; 
             font-weight: bold; 
             box-shadow: 0 10px 20px rgba(29, 185, 84, 0.3);
+            margin-bottom: 10px;
         }
 
         .result-item { 
@@ -109,6 +110,9 @@
     </div>
 
     <script>
+        // Καταχώρηση του plugin μόνιμων labels
+        Chart.register(ChartDataLabels);
+
         let myChart = null;
         const chartColors = [
             { start: '#1db954', end: '#1ed760' }, 
@@ -116,7 +120,6 @@
             { start: '#2d3436', end: '#636e72' }
         ];
 
-        // Ενημέρωση κειμένου όταν επιλεγεί αρχείο
         function updateFileName() {
             const input = document.getElementById('audioFile');
             const label = document.getElementById('fileLabel');
@@ -172,7 +175,6 @@
             } catch (err) { alert("Σφάλμα επεξεργασίας."); }
         }
 
-        // Συναρτήσεις createSmartSample & bufferToWav (Όπως πριν)
         async function createSmartSample(file) {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const arrayBuffer = await file.arrayBuffer();
@@ -224,25 +226,31 @@
                     datasets: [{
                         data: data.map(i => i.probability),
                         backgroundColor: gradients,
-                        borderWidth: 0
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
                     }]
                 },
                 options: { 
                     responsive: true, 
-                    cutout: '70%',
+                    cutout: '65%',
                     plugins: { 
                         legend: { display: false },
+                        // Ρυθμίσεις για τα μόνιμα ποσοστά πάνω στο chart
+                        datalabels: {
+                            color: '#ffffff',
+                            font: { weight: 'bold', size: 14 },
+                            formatter: (value) => value + '%',
+                            anchor: 'center',
+                            align: 'center',
+                            offset: 0,
+                            textShadowBlur: 4,
+                            textShadowColor: 'rgba(0,0,0,0.5)'
+                        },
                         tooltip: {
                             enabled: true,
                             backgroundColor: '#2d3436',
-                            titleFont: { size: 16 },
-                            bodyFont: { size: 14 },
-                            padding: 12,
-                            displayColors: false,
                             callbacks: {
-                                label: function(context) {
-                                    return ` ${context.label}: ${context.raw}%`; // Εμφάνιση ποσοστού στο hover
-                                }
+                                label: (context) => ` ${context.label}: ${context.raw}%`
                             }
                         }
                     } 
